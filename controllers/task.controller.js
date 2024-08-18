@@ -4,11 +4,9 @@ const { validationResult } = require("express-validator");
 const { sendResponse, AppError } = require("../helpers/utils");
 const User = require("../models/User");
 const taskController = {};
-
 taskController.createTask = async (req, res, next) => {
   try {
     const { name, description } = req.body;
-
     const newTask = await Task.create({
       name,
       description,
@@ -24,15 +22,12 @@ taskController.createTask = async (req, res, next) => {
     next(err);
   }
 };
-
 taskController.getTasks = async (req, res, next) => {
   const allowedQuery = ["page", "limit", "name", "description", "status"];
-
   try {
     let { page, limit, ...filterQuery } = req.query;
     page = page || 1;
     limit = limit || 10;
-
     const filterKeys = Object.keys(filterQuery);
     filterKeys.forEach((key) => {
       if (!allowedQuery.includes(key)) {
@@ -40,7 +35,6 @@ taskController.getTasks = async (req, res, next) => {
       }
       if (!filterQuery[key]) delete filterQuery[key];
     });
-
     if (filterQuery.name)
       filterQuery.name = { $regex: filterQuery.name, $options: "i" };
     if (filterQuery.description)
@@ -48,7 +42,6 @@ taskController.getTasks = async (req, res, next) => {
         $regex: filterQuery.description,
         $options: "i",
       };
-
     const tasks = await Task.find({
       ...filterQuery,
       isDeleted: false,
@@ -68,41 +61,17 @@ taskController.getTasks = async (req, res, next) => {
     next(err);
   }
 };
-
 taskController.getSingleTask = async (req, res, next) => {
   try {
     const { taskId } = req.params;
 
-    const task = await Task.findOne({ _id: taskId, isDeleted: false });
+    const task = await Task.findOne({ _id: taskId, isDeleted: false }).populate(
+      "assignee"
+    );
     if (!task) {
       throw new AppError(404, "Task Not Found", "Not Found");
     }
-
     sendResponse(res, 200, { task }, null, "Get Task Successfully!");
-  } catch (err) {
-    next(err);
-  }
-};
-
-taskController.assignTask = async (req, res, next) => {
-  try {
-    const { taskId } = req.params;
-    const { userId } = req.body;
-    const task = await Task.findById(taskId);
-    const user = await User.findById(userId);
-    if (!task) {
-      throw new AppError(404, "Task Not Found", "Not Found");
-    }
-    if (!user) {
-      throw new AppError(404, "User Not Found", "Not Found");
-    }
-
-    task.assignee = userId;
-    user.tasks.push(taskId);
-    await user.save();
-    task = await task.save();
-
-    sendResponse(res, 200, { task }, null, "Assign Task List Successfully!");
   } catch (err) {
     next(err);
   }
@@ -119,27 +88,21 @@ taskController.updateTask = async (req, res, next) => {
     const invalidFields = updateKeys.filter(
       (field) => !allowedUpdates.includes(field)
     );
-
     if (invalidFields.length) {
       throw new AppError(400, "Bad Request", "Invalid update field");
     }
-
     let task = await Task.findOne({ _id: taskId, isDeleted: false });
     if (!task) {
       throw new AppError(404, "Task Not Found", "Not Found");
     }
-
     // when a task status is "done", it cannot be changed to something else other than "archive"
-
     if (
       task.status === "done" &&
       !finishedTaskStatus.includes(updates.status)
     ) {
       throw new AppError(400, "Invalid task status update", "Bad Request");
     }
-
     // Unassign a task that has been assigned before
-
     if (task.assignee && !updates.assignee) {
       const currentAssignee = await User.findById(task.assignee);
       if (!currentAssignee) {
@@ -150,15 +113,11 @@ taskController.updateTask = async (req, res, next) => {
       delete updates.assignee;
       task.assignee = undefined;
     }
-
     //  Task has not been assigned before and there's no employee to assign, proceed to update other fields
-
     if (!task.assignee && !updates.assignee) {
       delete updates.assignee;
     }
-
     // Unassign a task that has been assigned before and assign it to another employee
-
     if (task.assignee && updates.assignee) {
       const currentAssignee = await User.findById(task.assignee);
       if (!currentAssignee) {
@@ -166,7 +125,6 @@ taskController.updateTask = async (req, res, next) => {
       }
       currentAssignee.tasks = currentAssignee.tasks.pull(taskId);
       await currentAssignee.save();
-
       const newAssignee = await User.findById(updates.assignee);
       if (!newAssignee) {
         throw new AppError(404, "User Not Found", "Not Found");
@@ -174,9 +132,7 @@ taskController.updateTask = async (req, res, next) => {
       newAssignee.tasks.push(taskId);
       await newAssignee.save();
     }
-
     // Assign a task that has not been assigned yet to an employee
-
     if (!task.assignee && updates.assignee) {
       const newAssignee = await User.findById(updates.assignee);
       if (!newAssignee) {
@@ -185,9 +141,7 @@ taskController.updateTask = async (req, res, next) => {
       newAssignee.tasks.push(taskId);
       await newAssignee.save();
     }
-
     // Update task if there's an assignee, include/update 'assignee' field, else delete 'assignee' field
-
     task = updates.assignee
       ? await Task.findByIdAndUpdate(taskId, updates, { new: true })
       : await Task.findByIdAndUpdate(
@@ -195,13 +149,11 @@ taskController.updateTask = async (req, res, next) => {
           { ...updates, $unset: { assignee: 1 } },
           { new: true }
         );
-
     sendResponse(res, 200, { task }, null, "Update Task Successfully!");
   } catch (err) {
     next(err);
   }
 };
-
 taskController.deleteTask = async (req, res, next) => {
   try {
     const { taskId } = req.params;
@@ -211,7 +163,6 @@ taskController.deleteTask = async (req, res, next) => {
       { new: true }
     );
     if (!deletedTask) throw new AppError(404, "Task Not Found", "Not Found");
-
     sendResponse(
       res,
       200,
@@ -223,5 +174,4 @@ taskController.deleteTask = async (req, res, next) => {
     next(err);
   }
 };
-
 module.exports = taskController;
