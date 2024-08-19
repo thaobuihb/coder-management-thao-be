@@ -22,4 +22,19 @@ mongoose
   .catch((err) => console.log(err));
 
 app.use("/", indexRouter);
+
+app.use((req, res, next) => {
+  const err = new AppError(404, "Not Found", "Bad Request");
+  next(err);
+});
+app.use((err, req, res, next) => {
+  console.log("ERROR", err);
+  return sendResponse(
+    res,
+    err.statusCode ? err.statusCode : 500,
+    null,
+    { message: err.message },
+    err.isOperational ? err.errorType : "Internal Server Error"
+  );
+});
 module.exports = app;
