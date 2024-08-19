@@ -22,3 +22,4 @@ mongoose
   .catch((err) => console.log(err));
 
 app.use("/", indexRouter);
+module.exports = app;
