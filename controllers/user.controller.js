@@ -7,6 +7,7 @@ const userController = {};
 userController.createUser = async (req, res, next) => {
   try {
     const { name } = req.body;
+
     //check duplicate name
 
     const existingUser = await User.findOne({ name });
